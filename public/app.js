@@ -17,7 +17,7 @@ const h = (tag, attrs = {}, ...kids) => {
 };
 const store = { get(k, d) { try { return localStorage.getItem(k) ?? d; } catch { return d; } }, set(k, v) { try { localStorage.setItem(k, v); } catch { /* egal */ } } };
 
-const TABS = [['overview', 'Übersicht'], ['ah', 'Auktionshaus'], ['orders', 'Orders'], ['prices', 'Preise'], ['wealth', 'Vermögen'], ['trades', 'Handel'], ['rtp', 'RTP-Tracker']];
+const TABS = [['overview', 'Übersicht'], ['ah', 'Auktionshaus'], ['orders', 'Orders'], ['prices', 'Preise'], ['wealth', 'Vermögen'], ['trades', 'Handel'], ['rtp', 'RTP-Tracker'], ['account', 'Mein Konto']];
 const TYPE = { AH: 'Auktionshaus', ORDER: 'Order', SHOP_BUY: 'Shop-Kauf', SHOP_SELL: 'Shop-Verkauf' };
 const DIM = { overworld: 'Oberwelt', nether: 'Nether', end: 'End' };
 
@@ -218,17 +218,114 @@ function viewRTP() {
       h('div', {}, h('h3', {}, 'Letzte RTPs'), table([{ t: 'Zeit', f: (p) => ago(p.time) }, { t: 'Spieler', f: (p) => p.name }, { t: 'Ziel', f: (p) => DIM[p.dim] || p.dim }], r.recent.slice(0, 15), { empty: 'Noch keine RTPs.' }))));
 }
 
-const VIEWS = { overview: viewOverview, ah: viewAH, orders: viewOrders, prices: viewPrices, wealth: viewWealth, trades: viewTrades, rtp: viewRTP };
+/* ---------- Mein Konto: Anmeldung per /verify und privates Inventar ---------- */
+let accTimer = null;
+const stopAcc = () => { clearInterval(accTimer); accTimer = null; };
+const api = async (path, opts = {}) => { const r = await fetch(path, { credentials: 'same-origin', ...opts }); let j = {}; try { j = await r.json(); } catch { /* leer */ } return [r.status, j]; };
+const hue = (s) => { let x = 0; for (const c of s) x = (x * 31 + c.charCodeAt(0)) % 360; return x; };
+const abbr = (item) => item.split('_').map((w) => w[0]).join('').slice(0, 3);
+const icon = (item) => { const u = window.XM_ICON_URL; return u ? u.replace('{id}', item.toLowerCase()) : ''; };
+
+function slotEl(it, sel, onPick) {
+  if (!it) return h('div', { class: 'slot empty' });
+  const url = icon(it.item);
+  const b = h('button', { class: 'slot' + (it.enchants ? ' ench' : ''), type: 'button', title: it.custom || it.name, style: url ? '' : `background:hsl(${hue(it.item)} 45% 32%)`, onclick: () => onPick(it, b) },
+    url ? h('img', { src: url, alt: '', loading: 'lazy', onerror: (e) => { e.target.replaceWith(document.createTextNode(abbr(it.item))); } }) : abbr(it.item),
+    it.amount > 1 ? h('b', {}, it.amount) : null,
+    it.durability != null ? h('i', { style: `width:${it.durability}%;background:${it.durability < 25 ? 'var(--e1)' : 'var(--ac)'}` }) : null);
+  return b;
+}
+function grid(cls, size, items, slots, pick) {
+  const bySlot = new Map(items.map((i) => [i.slot, i]));
+  return h('div', { class: 'inv ' + cls }, slots.map((s) => slotEl(bySlot.get(s), false, pick)));
+}
+function accountView(inv, me) {
+  const box = h('div', {});
+  const detail = h('div', { class: 'card detail' }, h('span', { class: 'mu' }, 'Tippe ein Item an, um Details zu sehen.'));
+  let selected = null;
+  const pick = (it, el) => {
+    selected?.classList.remove('sel'); selected = el; el.classList.add('sel');
+    detail.replaceChildren(...[h('h3', {}, it.custom ? `${it.custom} (${it.name})` : it.name), h('span', { class: 'mu' }, `${it.item.toLowerCase()} · ×${num(it.amount)}${it.durability != null ? ' · Haltbarkeit ' + it.durability + ' %' : ''}`),
+      it.enchants ? h('ul', {}, it.enchants.map((e) => h('li', {}, e))) : null, it.lore ? h('ul', {}, it.lore.map((l) => h('li', { class: 'mu' }, l))) : null].filter(Boolean));
+  };
+  const range = (a, b) => Array.from({ length: b - a }, (_, i) => a + i);
+  const st = inv.stats || {};
+  box.append(
+    h('div', { class: 'who' }, h('img', { src: `https://mc-heads.net/avatar/${me.uuid}/64`, alt: '', onerror: (e) => e.target.remove() }),
+      h('div', {}, h('h2', {}, inv.name || me.name), h('span', { class: 'mu' }, `Stand: ${ago(inv.updated)} · der Server aktualisiert alle paar Minuten, mit „Neu laden“ holst du den neuesten Stand`)),
+      h('button', { class: 'alt', onclick: () => { stopAcc(); render(); } }, 'Neu laden'),
+      h('button', { class: 'alt', onclick: async () => { await api('/api/auth/logout', { method: 'POST' }); stopAcc(); render(); } }, 'Abmelden')),
+    h('div', { class: 'grid' }, stat('Bargeld', money(st.money)), stat('Bank', money(st.bank)), stat('Stars', num(st.crystals)), stat('Gems', num(st.gems)), stat('Level', num(st.level))),
+    h('h3', {}, 'Inventar'),
+    h('div', { class: 'invwrap' },
+      h('div', { class: 'cols' },
+        h('div', {}, h('p', { class: 'mu', style: 'margin:0 0 4px' }, 'Rüstung'), grid('side', 1, inv.inventory, [39, 38, 37, 36], pick)),
+        h('div', {}, h('p', { class: 'mu', style: 'margin:0 0 4px' }, 'Zweithand'), grid('side', 1, inv.inventory, [40], pick))),
+      h('div', { style: 'flex:1 1 380px;max-width:560px' }, grid('', 9, inv.inventory, range(9, 36), pick), h('div', { style: 'height:8px' }), grid('', 9, inv.inventory, range(0, 9), pick))),
+    h('h3', {}, `Endertruhe (${inv.enderRows} Reihen)`),
+    h('div', { style: 'max-width:560px' }, grid('', 9, inv.enderchest, range(0, inv.enderRows * 9), pick)),
+    h('h3', {}, 'Details'), detail,
+    h('p', { class: 'mu' }, 'Nur du siehst diese Daten. Beenden kannst du die Verknüpfung jederzeit im Spiel mit /verify logout.'));
+  return box;
+}
+function loginView(done) {
+  const box = h('div', { class: 'login card' });
+  const start = h('button', {}, 'Mit Minecraft anmelden');
+  const info = h('div', {});
+  let left = 0;
+  const wait = () => {
+    stopAcc();
+    accTimer = setInterval(async () => {
+      left--;
+      const cd = $('#cd'); if (cd) cd.textContent = Math.max(0, left) + 's';
+      if (left % 3 !== 0 && left > 0) return;
+      const [, j] = await api('/api/auth/status');
+      if (j.state === 'ok') { stopAcc(); done(); }
+      else if (j.state === 'expired' || j.state === 'none' || left <= 0) { stopAcc(); info.replaceChildren(h('p', { class: 'mu' }, 'Der Code ist abgelaufen.'), start); start.hidden = false; }
+    }, 1000);
+  };
+  start.onclick = async () => {
+    start.disabled = true;
+    const [s, j] = await api('/api/auth/start', { method: 'POST' });
+    start.disabled = false;
+    if (s !== 200) { info.replaceChildren(h('p', { class: 'mu' }, j.error || 'Fehler. Bitte später erneut versuchen.'), start); return; }
+    left = j.expiresIn;
+    start.hidden = true;
+    info.replaceChildren(h('p', {}, 'Tippe im Spiel (auf dem Server) diesen Befehl ein:'), h('div', { class: 'code' }, j.code),
+      h('p', {}, h('b', {}, '/verify ' + j.code)), h('p', { class: 'mu' }, 'Diese Seite meldet dich automatisch an. Der Code gilt noch ', h('span', { id: 'cd' }, left + 's'), '.'),
+      h('div', { class: 'note' }, 'Gib nur einen Code ein, den du ', h('b', {}, 'selbst hier'), ' siehst, und teile ihn nie. Wer dich bittet, einen fremden Code einzugeben, will an dein Inventar.'));
+    wait();
+  };
+  box.append(h('h2', {}, 'Mein Konto'), h('p', {}, 'Verknüpfe deinen Minecraft-Account und sieh dein Inventar und deine Endertruhe direkt hier.'), info, start,
+    h('p', { class: 'mu' }, 'Du kannst die Verknüpfung jederzeit im Spiel mit /verify logout beenden. Dann werden alle Sitzungen beendet und deine Daten hier gelöscht.'));
+  return box;
+}
+function viewAccount() {
+  const root = h('div', {}, h('p', { class: 'mu' }, 'Lade …'));
+  (async () => {
+    const [s, me] = await api('/api/me');
+    if (s !== 200) { root.replaceChildren(loginView(() => render())); return; }
+    const [s2, inv] = await api('/api/me/inventory');
+    if (s2 === 404) { root.replaceChildren(h('div', { class: 'card' }, h('h2', {}, me.name), h('p', {}, 'Noch keine Inventardaten empfangen. Das dauert nach der Verknüpfung bis zu 2 Minuten. Du musst dafür online sein.'),
+      h('button', { onclick: () => render() }, 'Neu laden'), ' ', h('button', { class: 'alt', onclick: async () => { await api('/api/auth/logout', { method: 'POST' }); render(); } }, 'Abmelden'))); return; }
+    if (s2 !== 200) { root.replaceChildren(h('p', { class: 'mu' }, 'Daten konnten nicht geladen werden.')); return; }
+    root.replaceChildren(accountView(inv, me));
+  })();
+  return root;
+}
+
+const VIEWS = { account: viewAccount, overview: viewOverview, ah: viewAH, orders: viewOrders, prices: viewPrices, wealth: viewWealth, trades: viewTrades, rtp: viewRTP };
 
 /* ---------- Laden & Anzeigen ---------- */
 function render() {
   const nav = $('#tabs');
   nav.replaceChildren(...TABS.map(([id, t]) => h('a', { href: '#' + id, class: id === tab ? 'on' : '' }, t)));
   const app = $('#app');
+  if (tab === 'account') { app.replaceChildren(VIEWS.account()); return; } // Konto braucht keine Marktdaten
   if (!D || D.empty) { app.replaceChildren(h('p', { class: 'mu' }, D ? 'Noch keine Daten vom Server empfangen. Sobald das Plugin die ersten Daten sendet, erscheinen sie hier.' : 'Lade …')); return; }
   try { app.replaceChildren(VIEWS[tab]()); } catch (e) { console.error(e); app.replaceChildren(h('p', { class: 'mu' }, 'Anzeige-Fehler. Bitte Seite neu laden.')); }
 }
-function setTab() { const t = location.hash.slice(1); tab = VIEWS[t] ? t : 'overview'; render(); }
+function setTab() { stopAcc(); const t = location.hash.slice(1); tab = VIEWS[t] ? t : 'overview'; render(); }
 
 async function load() {
   try {
@@ -243,10 +340,11 @@ async function load() {
       $('#warn').textContent = 'Die Daten sind älter als 15 Minuten. Der Server ist eventuell offline.';
     } else { $('#live').textContent = 'keine Daten'; }
   } catch { if (!D) D = { empty: true }; $('#live').className = 'pill off'; $('#live').textContent = 'Fehler'; }
-  render();
+  if (tab !== 'account') render(); // Konto-Ansicht nicht neu zeichnen (Code/Anmeldung läuft)
 }
 addEventListener('hashchange', setTab);
 const hadFocus = () => document.activeElement && ['INPUT', 'SELECT'].includes(document.activeElement.tagName);
 tab = VIEWS[location.hash.slice(1)] ? location.hash.slice(1) : 'overview';
+render();
 load();
 setInterval(() => { if (!hadFocus()) load(); }, 60000); // nicht neu zeichnen, solange jemand tippt
