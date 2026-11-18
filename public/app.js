@@ -226,11 +226,37 @@ const hue = (s) => { let x = 0; for (const c of s) x = (x * 31 + c.charCodeAt(0)
 const abbr = (item) => item.split('_').map((w) => w[0]).join('').slice(0, 3);
 const icon = (item) => { const u = window.XM_ICON_URL; return u ? u.replace('{id}', item.toLowerCase()) : ''; };
 
+/* Item-Bilder: Rendermite-Icons (kostenlose CDN von Nodecraft). Stylesheet wird einmal geladen, Items sind <span class="rc-item rc-minecraft_<id>">.
+   Klappt das Laden nicht (oder ist die Klasse unbekannt), zeigt die Seite automatisch farbige Kacheln mit Kürzel. */
+let cssIcons = null; // null = lädt noch, true = ok, false = nicht verfügbar
+function loadIconCss() {
+  const href = window.XM_ICON_CSS;
+  if (!href || window.XM_ICON_URL) { cssIcons = false; return; }
+  const l = h('link', { rel: 'stylesheet', href });
+  l.onload = () => { cssIcons = true; fixIcons(); };
+  l.onerror = () => { cssIcons = false; fixIcons(); };
+  document.head.append(l);
+}
+function fixIcons() {
+  for (const el of document.querySelectorAll('.slot [data-ic]')) {
+    const slot = el.parentElement;
+    if (cssIcons === false || getComputedStyle(el).backgroundImage === 'none') {
+      el.replaceWith(document.createTextNode(el.dataset.ic));
+      slot.style.background = `hsl(${slot.dataset.hue} 45% 32%)`;
+      continue;
+    }
+    const w = el.offsetWidth;
+    if (w > 0) el.style.transform = `scale(${Math.min(1.5, slot.clientWidth * 0.82 / w)})`;
+  }
+}
+
 function slotEl(it, sel, onPick) {
   if (!it) return h('div', { class: 'slot empty' });
-  const url = icon(it.item);
-  const b = h('button', { class: 'slot' + (it.enchants ? ' ench' : ''), type: 'button', title: it.custom || it.name, style: url ? '' : `background:hsl(${hue(it.item)} 45% 32%)`, onclick: () => onPick(it, b) },
-    url ? h('img', { src: url, alt: '', loading: 'lazy', onerror: (e) => { e.target.replaceWith(document.createTextNode(abbr(it.item))); } }) : abbr(it.item),
+  const url = icon(it.item), sprite = !url && cssIcons !== false && window.XM_ICON_CSS;
+  const id = it.item.toLowerCase();
+  const b = h('button', { class: 'slot' + (it.enchants ? ' ench' : ''), type: 'button', title: it.custom || it.name, 'data-hue': hue(it.item), style: url || sprite ? '' : `background:hsl(${hue(it.item)} 45% 32%)`, onclick: () => onPick(it, b) },
+    url ? h('img', { src: url, alt: '', loading: 'lazy', onerror: (e) => { e.target.replaceWith(document.createTextNode(abbr(it.item))); } })
+      : sprite ? h('span', { class: `rc-item rc-minecraft_${id}${it.enchants ? ' rc-enchanted' : ''}`, 'data-ic': abbr(it.item) }) : abbr(it.item),
     it.amount > 1 ? h('b', {}, it.amount) : null,
     it.durability != null ? h('i', { style: `width:${it.durability}%;background:${it.durability < 25 ? 'var(--e1)' : 'var(--ac)'}` }) : null);
   return b;
@@ -310,6 +336,8 @@ function viewAccount() {
       h('button', { onclick: () => render() }, 'Neu laden'), ' ', h('button', { class: 'alt', onclick: async () => { await api('/api/auth/logout', { method: 'POST' }); render(); } }, 'Abmelden'))); return; }
     if (s2 !== 200) { root.replaceChildren(h('p', { class: 'mu' }, 'Daten konnten nicht geladen werden.')); return; }
     root.replaceChildren(accountView(inv, me));
+    fixIcons();
+    setTimeout(fixIcons, 400);
   })();
   return root;
 }
@@ -345,6 +373,7 @@ async function load() {
 addEventListener('hashchange', setTab);
 const hadFocus = () => document.activeElement && ['INPUT', 'SELECT'].includes(document.activeElement.tagName);
 tab = VIEWS[location.hash.slice(1)] ? location.hash.slice(1) : 'overview';
+loadIconCss();
 render();
 load();
 setInterval(() => { if (!hadFocus()) load(); }, 60000); // nicht neu zeichnen, solange jemand tippt

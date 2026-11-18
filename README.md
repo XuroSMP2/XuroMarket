@@ -36,7 +36,7 @@ Sind die Daten älter als 15 Minuten, zeigt die Seite einen Hinweis ("Server off
 4. `/verify logout` im Spiel beendet alle Sitzungen und löscht die Daten auf der Seite.
 
 Sicherheit: Codes sind zufällig und einmalig, Bestätigung und Datenübertragung nur mit dem API-Key des Plugins, POSTs nur von der eigenen Seite (Origin-Prüfung), Anmelde-Limit pro IP, das Plugin sendet nur Daten verknüpfter Spieler. Das Inventar gibt es nie öffentlich.
-Item-Bilder sind optional: in `public/config.js` eine Bild-Adresse mit `{id}` eintragen, sonst erscheinen farbige Kacheln mit Kürzel (Details beim Antippen).
+Item-Bilder kommen standardmäßig von den kostenlosen Rendermite-Icons (Nodecraft), eingestellt in `public/config.js` (`XM_ICON_CSS`). Lassen sie sich nicht laden, erscheinen automatisch farbige Kacheln mit Kürzel. Alternativ eine eigene Bild-Adresse mit `{id}` bei `XM_ICON_URL` eintragen.
 
 ## Technik
 - `netlify/functions/ingest.mjs` nimmt die Daten des Plugins entgegen (nur mit Key) und speichert sie in Netlify Blobs.

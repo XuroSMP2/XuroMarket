@@ -58,3 +58,5 @@ svg.spark{width:84px;height:22px;vertical-align:middle}svg.spark polyline{fill:n
 .detail{min-height:90px}.detail h3{margin:0 0 4px}.detail ul{margin:6px 0 0;padding-left:18px}
 .cols{display:flex;gap:6px;align-items:flex-start;flex-wrap:wrap}
 @media(max-width:520px){.slot{font-size:.6rem}}
+
+.slot .rc-item{flex:none;transform-origin:center}
