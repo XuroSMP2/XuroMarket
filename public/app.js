@@ -27,6 +27,7 @@ const ui = {};          // UI-Zustand je Tab (Suche, Sortierung ...)
 const st = (k, d) => (ui[k] ??= d);
 
 /* ---------- Hilfen ---------- */
+const tot = (p) => (p.money || 0) + (p.bank || 0);
 const lc = (s) => String(s || '').toLowerCase();
 const ago = (t) => { const m = Math.max(0, Math.floor((Date.now() - t) / 60000)); return m < 1 ? 'gerade eben' : m < 60 ? `vor ${m} Min` : m < 1440 ? `vor ${Math.floor(m / 60)} Std` : `vor ${Math.floor(m / 1440)} T`; };
 const left = (t) => { const m = Math.floor((t - Date.now()) / 60000); return m <= 0 ? 'abgelaufen' : m < 60 ? `${m} Min` : m < 1440 ? `${Math.floor(m / 60)} Std` : `${Math.floor(m / 1440)} T ${Math.floor(m % 1440 / 60)} Std`; };
@@ -161,27 +162,28 @@ function playerCard(p, rank) {
   const mine = D.market.trades.filter((t) => t.buyer === p.name || t.seller === p.name).slice(0, 15);
   return h('div', { class: 'card', style: 'margin-bottom:16px' }, h('h2', {}, p.name),
     h('p', { class: 'mu' }, `Rang: ${p.rank}${p.clan ? ' · Clan: ' + p.clan : ''}${rank ? ' · Platz ' + rank + ' beim Vermögen' : ''}`),
-    h('div', { class: 'grid' }, stat('Geld', money(p.money)), stat('Anteil am Gesamtgeld', nfD.format(p.money / sum * 100) + ' %'), stat('Stars', num(p.crystals)), stat('Gems', num(p.gems)),
+    h('div', { class: 'grid' }, stat('Gesamtvermögen', money(tot(p))), stat('Bargeld', money(p.money)), stat('Bank', money(p.bank || 0)), stat('Anteil am Gesamtgeld', nfD.format(tot(p) / sum * 100) + ' %'), stat('Stars', num(p.crystals)), stat('Gems', num(p.gems)),
       stat('Gekauft', `${num(p.boughtItems)} Items`), stat('Dafür bezahlt', money(p.boughtMoney)), stat('Verkauft', `${num(p.soldItems)} Items`), stat('Dafür erhalten', money(p.soldMoney))),
     mine.length ? h('div', {}, h('h3', {}, 'Letzte Trades'), tradesTable(mine)) : h('p', { class: 'mu' }, 'Keine aktuellen Trades im Verlauf.'));
 }
 function viewWealth() {
   const m = D.market, sum = m.totals.circulation || 1;
   const [box, draw] = live(() => {
-    const q = lc(st('wq', '')), by = st('wby', 'money');
-    const sorted = [...m.wealth].sort((a, b) => b[by] - a[by]);
+    const q = lc(st('wq', '')), by = st('wby', 'total');
+    const val = (p) => (by === 'total' ? tot(p) : p[by] || 0);
+    const sorted = [...m.wealth].sort((a, b) => val(b) - val(a));
     const pos = new Map(sorted.map((p, i) => [p.name, i + 1]));
     const rows = sorted.filter((p) => !q || lc(p.name).includes(q));
     const exact = q && rows.find((p) => lc(p.name) === q);
     return h('div', {}, exact ? playerCard(exact, pos.get(exact.name)) : null,
-      table([{ t: '#', f: (p) => pos.get(p.name) }, { t: 'Spieler', f: (p) => p.name }, { t: 'Rang', f: (p) => p.rank }, { t: 'Geld', r: 1, f: (p) => money(p.money) }, { t: 'Anteil', r: 1, f: (p) => nfD.format(p.money / sum * 100) + ' %' },
+      table([{ t: '#', f: (p) => pos.get(p.name) }, { t: 'Spieler', f: (p) => p.name }, { t: 'Rang', f: (p) => p.rank }, { t: 'Gesamt', r: 1, f: (p) => money(tot(p)) }, { t: 'Bargeld', r: 1, f: (p) => money(p.money) }, { t: 'Bank', r: 1, f: (p) => money(p.bank || 0) }, { t: 'Anteil', r: 1, f: (p) => nfD.format(tot(p) / sum * 100) + ' %' },
         { t: 'Stars', r: 1, f: (p) => num(p.crystals) }, { t: 'Gems', r: 1, f: (p) => num(p.gems) },
         { t: 'Gekauft', r: 1, f: (p) => money(p.boughtMoney) }, { t: 'Verkauft', r: 1, f: (p) => money(p.soldMoney) }], rows,
       { limit: 100, onRow: (p) => { ui.wq = p.name; document.querySelector('#app input[type=search]').value = p.name; draw(); scrollTo({ top: 0, behavior: 'smooth' }); } }));
   });
   return h('div', {}, h('h2', {}, 'Vermögen & Handel'),
-    h('p', { class: 'mu' }, 'Geld im Umlauf: ' + money(m.totals.circulation) + ' bei ' + num(m.totals.players) + ' Spielern. „Gekauft/Verkauft“ zählt Shop, Auktionshaus und Orders seit Beginn der Aufzeichnung.'),
-    h('div', { class: 'tools' }, search('wq', 'Spielername (genau eingeben für Details) …', draw), select('wby', [['money', 'Nach Geld'], ['crystals', 'Nach Stars'], ['gems', 'Nach Gems'], ['boughtMoney', 'Nach Käufen'], ['soldMoney', 'Nach Verkäufen']], draw)), box);
+    h('p', { class: 'mu' }, 'Geld im Umlauf (Bargeld + Bank): ' + money(m.totals.circulation) + ' bei ' + num(m.totals.players) + ' Spielern. „Gekauft/Verkauft“ zählt Shop, Auktionshaus und Orders seit Beginn der Aufzeichnung.'),
+    h('div', { class: 'tools' }, search('wq', 'Spielername (genau eingeben für Details) …', draw), select('wby', [['total', 'Nach Gesamtvermögen'], ['money', 'Nach Bargeld'], ['bank', 'Nach Bankguthaben'], ['crystals', 'Nach Stars'], ['gems', 'Nach Gems'], ['boughtMoney', 'Nach Käufen'], ['soldMoney', 'Nach Verkäufen']], draw)), box);
 }
 
 function tradesTable(rows) {
