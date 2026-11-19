@@ -20,7 +20,8 @@ const ALPHABET = "ABCDEFGHJKLMNPQRSTUVWXYZ23456789"; // ohne 0/O/1/I
 const UUID_RE = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
 const CODE_RE = /^[A-Z0-9]{6}$/;
 
-const store = () => getStore("xuromarket");
+// strong: Codes/Sitzungen müssen sofort nach dem Schreiben lesbar sein (sonst "Code abgelaufen" nach wenigen Sekunden)
+const store = () => getStore({ name: "xuromarket", consistency: "strong" });
 const sha = (s) => createHash("sha256").update(String(s)).digest("hex");
 const digest = (s) => createHash("sha256").update(String(s)).digest();
 

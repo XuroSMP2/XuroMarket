@@ -298,7 +298,7 @@ function loginView(done) {
   const box = h('div', { class: 'login card' });
   const start = h('button', {}, 'Mit Minecraft anmelden');
   const info = h('div', {});
-  let left = 0;
+  let left = 0, bad = 0;
   const wait = () => {
     stopAcc();
     accTimer = setInterval(async () => {
@@ -306,8 +306,9 @@ function loginView(done) {
       const cd = $('#cd'); if (cd) cd.textContent = Math.max(0, left) + 's';
       if (left % 3 !== 0 && left > 0) return;
       const [, j] = await api('/api/auth/status');
-      if (j.state === 'ok') { stopAcc(); done(); }
-      else if (j.state === 'expired' || j.state === 'none' || left <= 0) { stopAcc(); info.replaceChildren(h('p', { class: 'mu' }, 'Der Code ist abgelaufen.'), start); start.hidden = false; }
+      if (j.state === 'ok') { stopAcc(); done(); return; }
+      if (j.state === 'expired' || j.state === 'none') bad++; else bad = 0;
+      if (bad >= 3 || left <= 0) { stopAcc(); info.replaceChildren(h('p', { class: 'mu' }, 'Der Code ist abgelaufen.'), start); start.hidden = false; }
     }, 1000);
   };
   start.onclick = async () => {
