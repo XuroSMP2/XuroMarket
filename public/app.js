@@ -359,7 +359,9 @@ function setTab() { stopAcc(); const t = location.hash.slice(1); tab = VIEWS[t] 
 async function load() {
   try {
     const r = await fetch('/api/market');
-    D = await r.json();
+    const nd = await r.json();
+    if (!r.ok || !nd || (!nd.empty && !nd.market)) throw new Error('bad');
+    D = nd; // nur gültige Daten übernehmen, sonst bleibt die letzte Anzeige stehen
     if (D && !D.empty) {
       priceMap = new Map(D.market.prices.map((p) => [p.item, p]));
       $('#upd').textContent = new Date(D.receivedAt).toLocaleString('de-DE', { timeZone: 'Europe/Berlin' });
@@ -368,7 +370,7 @@ async function load() {
       $('#warn').hidden = !D.stale;
       $('#warn').textContent = 'Die Daten sind älter als 15 Minuten. Der Server ist eventuell offline.';
     } else { $('#live').textContent = 'keine Daten'; }
-  } catch { if (!D) D = { empty: true }; $('#live').className = 'pill off'; $('#live').textContent = 'Fehler'; }
+  } catch { if (!D) D = { empty: true }; $('#live').className = 'pill off'; $('#live').textContent = 'Fehler'; $('#warn').hidden = false; $('#warn').textContent = 'Verbindung zum Server fehlgeschlagen. Es werden die zuletzt geladenen Daten angezeigt.'; }
   if (tab !== 'account') render(); // Konto-Ansicht nicht neu zeichnen (Code/Anmeldung läuft)
 }
 addEventListener('hashchange', setTab);
