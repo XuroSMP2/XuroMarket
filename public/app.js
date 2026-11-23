@@ -91,10 +91,10 @@ function viewOverview() {
       stat('Geld im Umlauf', money(t.circulation)), stat('Spieler online', D.status.online != null ? `${D.status.online}/${D.status.max}` : '–')),
     h('h3', {}, 'Umsatz der letzten 14 Tage'), bars(m.volume, 'volume', 'day', money),
     h('div', { class: 'two' },
-      h('div', {}, h('h3', {}, '🔥 Schnäppchen im Auktionshaus'),
+      h('div', {}, h('h3', {}, 'Schnäppchen im Auktionshaus'),
         table([{ t: 'Item', f: (x) => itemCell(x.r) }, { t: 'Stück', r: 1, f: (x) => money(x.r.unit) }, { t: 'Vs. Ø', f: (x) => x.d.tag }, { t: 'Menge', r: 1, f: (x) => num(x.r.amount) }],
           deals, { empty: 'Gerade keine deutlich günstigen Angebote.' })),
-      h('div', {}, h('h3', {}, '📥 Gesuchte Items (Orders)'),
+      h('div', {}, h('h3', {}, 'Gesuchte Items (Orders)'),
         table([{ t: 'Item', f: (o) => o.name }, { t: 'Menge', r: 1, f: (o) => num(o.remaining) }, { t: 'Preis/Stück', r: 1, f: (o) => money(o.price) }, { t: 'Gesamt', r: 1, f: (o) => money(o.total) }],
           wanted, { empty: 'Keine offenen Orders.' }))),
     h('h3', {}, 'Letzte Trades'), tradesTable(m.trades.slice(0, 10)));
